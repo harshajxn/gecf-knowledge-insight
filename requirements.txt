@@ -1,0 +1,6 @@
+langchain
+langchain-huggingface
+pypdf
+python-dotenv
+sentence-transformers
+huggingface-hub
