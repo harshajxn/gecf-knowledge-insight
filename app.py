@@ -1,22 +1,11 @@
 import os
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_huggingface import HuggingFaceEndpoint
-from langchain_huggingface.chat_models import ChatHuggingFace
+from langchain_community.chat_models import ChatOllama
 from langchain.agents import AgentExecutor, create_react_agent
-from langchain.tools import Tool # <-- IMPORT THE Tool CLASS
+from langchain.tools import Tool 
 from langchain import hub
 
-# --- 1. SETUP: LOAD API KEY AND DEFINE GECF COUNTRIES ---
-
-# Load the Hugging Face API token from the .env file
-load_dotenv()
-
-# Check if the API key is loaded and exit if not found
-if os.getenv("HUGGINGFACEHUB_API_TOKEN") is None:
-    print("FATAL ERROR: Hugging Face API token not found.")
-    print("Please create a .env file and set HUGGINGFACEHUB_API_TOKEN='your_token_here'")
-    exit()
 
 # Define the list of GECF member countries for the agent to focus on
 GECF_MEMBER_COUNTRIES = [
@@ -29,44 +18,48 @@ GECF_MEMBER_COUNTRIES = [
 PDF_PATH = "news_document.pdf"
 
 
-# --- 2. TOOL FUNCTION DEFINITION (WITHOUT @tool DECORATOR) ---
+# --- 2. TOOL FUNCTION DEFINITION ---
 
 # This is now a regular Python function. We will turn it into a tool later.
+# --- 2. TOOL FUNCTION DEFINITION (FINAL REFINED VERSION 2.0) ---
+
 def get_news_about_gecf_country(country_name: str) -> str:
     """
-    Searches the provided PDF document for news related to a specific GECF country.
-    Returns a text snippet if the country is mentioned, otherwise indicates that
-    no specific news was found for that country. This tool is essential for gathering
-    information before summarizing.
+    Searches the provided PDF document for SUBSTANTIAL news related to a specific GECF country.
+    It filters out pages with very little text (like lists, indexes, or charts) to ensure
+    the returned context is high-quality prose.
     """
     print(f"\n--- TOOL CALLED: Searching for news about '{country_name}'... ---")
     
-    # Clean the input from the agent to remove potential whitespace or newlines
     cleaned_country_name = country_name.strip().lower()
 
-    # Create a normalized list of countries for comparison
     normalized_countries = [c.strip().lower() for c in GECF_MEMBER_COUNTRIES]
-
-    # Sanity check to ensure the agent is asking for a valid country
     if cleaned_country_name not in normalized_countries:
-        # Provide a more helpful error message
-        return f"Error: The country '{country_name}' was not found in the predefined list of GECF countries. Please only use countries from the list."
+        return f"Error: The country '{country_name}' was not found in the predefined list."
 
     try:
-        # Load the PDF document
         loader = PyPDFLoader(PDF_PATH)
-        documents = loader.load()
-        full_text = " ".join([page.page_content for page in documents])
+        pages = loader.load()
+        
+        relevant_pages_content = []
+        # Define a minimum character count to consider a page as "substantial"
+        MIN_PAGE_CHARS = 500
 
-        # Simple text search for the country name (using the cleaned name)
-        if cleaned_country_name in full_text.lower():
-            # For efficiency, we return only the first 3500 characters as context.
-            return f"Success: Found relevant news for {country_name}. The context is: {full_text[:3500]}"
+        for page in pages:
+            page_text_lower = page.page_content.lower()
+            
+            # --- NEW HEURISTIC: Check for keyword AND minimum page length ---
+            if cleaned_country_name in page_text_lower and len(page.page_content) > MIN_PAGE_CHARS:
+                relevant_pages_content.append(page.page_content)
+
+        if relevant_pages_content:
+            full_context = "\n\n--- [RELEVANT PAGE] ---\n\n".join(relevant_pages_content)
+            return f"Success: Found substantial news for {country_name}. The context is: {full_context}"
         else:
-            return f"No specific news mentioning '{country_name}' was found in the document."
+            return f"No substantial news mentioning '{country_name}' was found on pages with significant text content."
             
     except FileNotFoundError:
-        return f"FATAL ERROR: The file '{PDF_PATH}' was not found. Please make sure it is in the same directory as this script."
+        return f"FATAL ERROR: The file '{PDF_PATH}' was not found."
     except Exception as e:
         return f"An error occurred while processing the PDF: {e}"
 
@@ -87,19 +80,14 @@ def main():
         )
     ]
 
-    # --- CORRECT LLM INITIALIZATION (FINAL VERSION) ---
+   # --- LOCAL LLM INITIALIZATION WITH OLLAMA ---
 
-    # Step A: Define the basic LLM connection using HuggingFaceEndpoint.
-    llm_endpoint = HuggingFaceEndpoint(
-        repo_id="HuggingFaceH4/zephyr-7b-beta",
-        huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN"),
-        temperature=0.1,
-        max_new_tokens=1024,
-        return_full_text=False
+# Initialize the ChatOllama model.
+# It will automatically connect to the Ollama service running on your machine.
+    llm = ChatOllama(
+        model="llama3:8b",  # Specify the model you downloaded
+        temperature=0       # Set temperature to 0 for more deterministic, factual output
     )
-
-    # Step B: Wrap the basic LLM connection in the ChatHuggingFace wrapper.
-    llm = ChatHuggingFace(llm=llm_endpoint)
 
     # --- AGENT AND EXECUTOR SETUP ---
 
