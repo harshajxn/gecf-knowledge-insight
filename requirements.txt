@@ -1,7 +1,6 @@
+streamlit
 langchain
-langchain-huggingface
+langchain-google-genai
 pypdf
 python-dotenv
-sentence-transformers
-huggingface-hub
-langchain-community
+altair<5
