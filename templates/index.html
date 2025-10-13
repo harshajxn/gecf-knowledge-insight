@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GECF Knowledge Insight Platform</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="page-wrapper">
+        <header class="main-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <img src="/static/gecf_logo.png" alt="GECF Logo" class="main-logo">
+                </div>
+                <div class="header-text">
+                    <h1 class="main-title">GECF Knowledge Insight Platform</h1>
+                    <p class="main-subtitle">Automated extraction of key insights on GECF member countries from reports and publications</p>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <section class="upload-section">
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2>Document Upload</h2>
+                        <p class="section-description">Upload PDF documents for automated analysis and summary generation</p>
+                    </div>
+
+                    <form id="upload-form" class="upload-form">
+                        <div class="file-input-wrapper">
+                            <label for="file-input" class="file-input-label">
+                                Select PDF Documents
+                                <span class="file-input-note">(Multiple files supported)</span>
+                            </label>
+                            <input type="file" name="files" id="file-input" multiple required class="file-input" accept=".pdf">
+                        </div>
+
+                        <div id="file-list" class="file-list"></div>
+
+                        <button type="submit" id="analyze-button" class="primary-button">
+                            <span class="button-text">Analyze Documents</span>
+                        </button>
+
+                        <div id="loading-spinner" class="loading-spinner" style="display: none;">
+                            <div class="spinner"></div>
+                            <p class="loading-text">Processing documents...</p>
+                        </div>
+
+                        <div id="error-message" class="error-message"></div>
+                    </form>
+                </div>
+            </section>
+
+            <section id="results-section" class="results-section"></section>
+        </main>
+    </div>
+
+    <script>
+        const form = document.getElementById('upload-form');
+        const fileInput = document.getElementById('file-input');
+        const fileList = document.getElementById('file-list');
+        const analyzeButton = document.getElementById('analyze-button');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const resultsSection = document.getElementById('results-section');
+        const errorMessage = document.getElementById('error-message');
+
+        let managedFiles = [];
+
+        fileInput.addEventListener('change', () => {
+            managedFiles = Array.from(fileInput.files);
+            renderFileList();
+        });
+
+        function renderFileList() {
+            fileList.innerHTML = '';
+            if (managedFiles.length > 0) {
+                const fileListContainer = document.createElement('div');
+                fileListContainer.className = 'selected-files';
+
+                const listTitle = document.createElement('h4');
+                listTitle.textContent = 'Selected Files:';
+                fileListContainer.appendChild(listTitle);
+
+                managedFiles.forEach((file, index) => {
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'file-item';
+                    fileItem.innerHTML = `
+                        <span class="file-name" title="${file.name}">${file.name}</span>
+                        <div class="file-meta">
+                            <span class="file-size">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                            <button type="button" class="delete-file-btn" data-index="${index}" title="Remove file">&times;</button>
+                        </div>
+                    `;
+                    fileListContainer.appendChild(fileItem);
+                });
+                fileList.appendChild(fileListContainer);
+            }
+
+            // Sync the managedFiles array back to the file input
+            const dataTransfer = new DataTransfer();
+            managedFiles.forEach(file => dataTransfer.items.add(file));
+            fileInput.files = dataTransfer.files;
+        }
+
+        fileList.addEventListener('click', (e) => {
+            if (e.target.classList.contains('delete-file-btn')) {
+                const indexToRemove = parseInt(e.target.dataset.index, 10);
+                managedFiles.splice(indexToRemove, 1);
+                renderFileList();
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (fileInput.files.length === 0) {
+                errorMessage.textContent = 'Please select at least one file to analyze.';
+                return;
+            }
+
+            loadingSpinner.style.display = 'flex';
+            analyzeButton.disabled = true;
+            resultsSection.innerHTML = '';
+            errorMessage.textContent = '';
+
+            const formData = new FormData();
+            for (const file of fileInput.files) {
+                formData.append('files', file);
+            }
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const results = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(results.error || 'An unknown error occurred.');
+                }
+
+                displayResults(results);
+
+            } catch (error) {
+                errorMessage.textContent = `Error: ${error.message}`;
+            } finally {
+                loadingSpinner.style.display = 'none';
+                analyzeButton.disabled = false;
+            }
+        });
+
+        function displayResults(results) {
+            resultsSection.innerHTML = `
+                <div class="results-header">
+                    <h2>Analysis Results</h2>
+                    <p class="results-summary">${results.length} document${results.length !== 1 ? 's' : ''} processed</p>
+                </div>
+            `;
+
+            results.forEach((result, index) => {
+                const resultCard = document.createElement('div');
+                resultCard.className = 'result-card';
+
+                let statusClass = '';
+                let statusText = '';
+
+                if (result.countriesFound && result.countriesFound.length > 0) {
+                    statusClass = 'status-success';
+                    statusText = `GECF countries mentioned: ${result.countriesFound.join(', ')}`;
+                } else {
+                    statusClass = 'status-warning';
+                    statusText = 'No GECF country references found';
+                }
+
+                let cardContent = `
+                    <div class="result-header">
+                        <h3 class="document-title">${result.heading}</h3>
+                        <div class="status-badge ${statusClass}">${statusText}</div>
+                    </div>
+
+                    <div class="result-content">
+                        <div class="summary-section">
+                            <h4>Executive Summary</h4>
+                            <p class="summary-text">${result.summary}</p>
+                        </div>
+                `;
+
+                if (result.images && result.images.length > 0) {
+                    cardContent += `
+                        <div class="images-section">
+                            <h4>Document Images</h4>
+                            <div class="image-gallery" id="gallery-${index}">
+                                <div class="gallery-controls">
+                                    <button class="gallery-nav gallery-prev" onclick="changeSlide(${index}, -1)" ${result.images.length <= 1 ? 'disabled' : ''}>
+                                        &#8249;
+                                    </button>
+                                    <span class="gallery-counter">1 of ${result.images.length}</span>
+                                    <button class="gallery-nav gallery-next" onclick="changeSlide(${index}, 1)" ${result.images.length <= 1 ? 'disabled' : ''}>
+                                        &#8250;
+                                    </button>
+                                </div>
+                                <div class="gallery-images">
+                                    ${result.images.map((img, i) => `
+                                        <img src="data:image/png;base64,${img}"
+                                             class="gallery-image"
+                                             style="display: ${i === 0 ? 'block' : 'none'};"
+                                             alt="Document image ${i + 1}">
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                cardContent += '</div>';
+                resultCard.innerHTML = cardContent;
+                resultsSection.appendChild(resultCard);
+            });
+        }
+
+        function changeSlide(galleryIndex, direction) {
+            const gallery = document.getElementById(`gallery-${galleryIndex}`);
+            const images = gallery.getElementsByClassName('gallery-image');
+            const counter = gallery.getElementsByClassName('gallery-counter')[0];
+
+            let currentIndex = Array.from(images).findIndex(img => img.style.display === 'block');
+            let newIndex = (currentIndex + direction + images.length) % images.length;
+
+            images[currentIndex].style.display = 'none';
+            images[newIndex].style.display = 'block';
+            counter.textContent = `${newIndex + 1} of ${images.length}`;
+        }
+    </script>
+</body>
+</html>

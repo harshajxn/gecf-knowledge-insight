@@ -1,5 +1,6 @@
 # Virtual Environment
 venv/
+.venv/
 
 # Python cache
 __pycache__/
@@ -8,10 +9,9 @@ __pycache__/
 # Environment variables
 .env
 
-# Ignore all image files
-*.jpg
-*.jpeg
-*.png
+# Temp directory for uploads
+temp/
 
-# Ignore all PDF documents
-*.pdf
+# IDE specific
+.vscode/
+.idea/

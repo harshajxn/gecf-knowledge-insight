@@ -1,6 +1,8 @@
-streamlit
-langchain
-langchain-google-genai
-pypdf
+Flask
+gunicorn
 python-dotenv
-altair<5
+langchain-community
+langchain-groq
+langchain-core
+PyMuPDF
+fitz
