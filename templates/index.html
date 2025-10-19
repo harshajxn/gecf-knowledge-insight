@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GECF Knowledge Insight Platform</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="page-wrapper">
@@ -101,7 +98,6 @@
                 fileList.appendChild(fileListContainer);
             }
 
-            // Sync the managedFiles array back to the file input
             const dataTransfer = new DataTransfer();
             managedFiles.forEach(file => dataTransfer.items.add(file));
             fileInput.files = dataTransfer.files;
@@ -139,6 +135,14 @@
                     body: formData,
                 });
 
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const textResponse = await response.text();
+                    console.error('Non-JSON response:', textResponse);
+                    throw new Error('Server returned an error. Please check console for details. Response: ' + textResponse.substring(0, 200));
+                }
+
                 const results = await response.json();
 
                 if (!response.ok) {
@@ -148,6 +152,7 @@
                 displayResults(results);
 
             } catch (error) {
+                console.error('Full error:', error);
                 errorMessage.textContent = `Error: ${error.message}`;
             } finally {
                 loadingSpinner.style.display = 'none';
