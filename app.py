@@ -1,6 +1,7 @@
 import os
 import base64
 import json
+import sys
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
@@ -12,13 +13,19 @@ import fitz  # PyMuPDF
 
 load_dotenv()
 if os.getenv("GROQ_API_KEY") is None:
-    raise Exception("FATAL ERROR: GROQ_API_KEY not found in .env file.")
+    print("WARNING: GROQ_API_KEY not found in environment variables", file=sys.stderr)
+    # Don't raise exception, let it fail gracefully when actually used
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 # 200 MB limit per request
 
+# Enable debug logging
+import logging
+logging.basicConfig(level=logging.DEBUG)
+app.logger.setLevel(logging.DEBUG)
+
 # Usage statistics storage (in production, use a database)
-STATS_FILE = "usage_stats.json"
+STATS_FILE = "/tmp/usage_stats.json"
 
 def load_stats():
     """Load usage statistics from file"""
@@ -26,8 +33,8 @@ def load_stats():
         try:
             with open(STATS_FILE, 'r') as f:
                 return json.load(f)
-        except:
-            pass
+        except Exception as e:
+            print(f"Error loading stats: {e}")
     return {
         "total_visits": 0,
         "total_uploads": 0,
@@ -104,13 +111,20 @@ def extract_images_from_pdf(file_bytes):
 def extract_relevant_text(uploaded_file):
     try:
         file_bytes = uploaded_file.read()
-        temp_dir = "temp"
+        # Use /tmp directory on Vercel (it's writable)
+        temp_dir = "/tmp"
         os.makedirs(temp_dir, exist_ok=True)
         temp_file_path = os.path.join(temp_dir, uploaded_file.filename)
         with open(temp_file_path, "wb") as f: f.write(file_bytes)
         pages = PyPDFLoader(temp_file_path).load()
         images = extract_images_from_pdf(file_bytes)
-        os.remove(temp_file_path)
+        
+        # Clean up temp file
+        try:
+            os.remove(temp_file_path)
+        except:
+            pass
+            
         document_heading = uploaded_file.filename
         if pages and pages[0].page_content:
             lines = [line.strip() for line in pages[0].page_content.split("\n") if line.strip()]
@@ -123,7 +137,9 @@ def extract_relevant_text(uploaded_file):
                     found.add(country)
         if not relevant_text: return f"No relevant info found in {uploaded_file.filename}.", [], document_heading, []
         return relevant_text, list(found), document_heading, images
-    except Exception as e: return f"Error processing {uploaded_file.filename}: {e}", [], uploaded_file.filename, []
+    except Exception as e: 
+        print(f"Error in extract_relevant_text: {str(e)}")
+        return f"Error processing {uploaded_file.filename}: {e}", [], uploaded_file.filename, []
 
 def generate_summary(context: str):
     try:
@@ -144,33 +160,51 @@ def home():
 
 @app.route('/process', methods=['POST'])
 def process_files():
-    uploaded_files = request.files.getlist('files')
-    if not uploaded_files or uploaded_files[0].filename == '':
-        return jsonify({'error': "Please upload at least one file."}), 400
+    try:
+        uploaded_files = request.files.getlist('files')
+        if not uploaded_files or uploaded_files[0].filename == '':
+            return jsonify({'error': "Please upload at least one file."}), 400
 
-    all_results = []
-    all_countries_found = set()
-    filenames = []
-    
-    for file in uploaded_files:
-        filenames.append(file.filename)
-        context, countries_found, heading, images = extract_relevant_text(file)
-        summary_text = generate_summary(context) if "No relevant info" not in context else context
-        mentioned = [c for c in countries_found if c.lower() in summary_text.lower()]
-        if "united arab emirates" in summary_text.lower() and "UAE" in countries_found and "UAE" not in mentioned:
-            mentioned.append("UAE")
+        all_results = []
+        all_countries_found = set()
+        filenames = []
         
-        all_countries_found.update(mentioned)
+        for file in uploaded_files:
+            try:
+                filenames.append(file.filename)
+                context, countries_found, heading, images = extract_relevant_text(file)
+                summary_text = generate_summary(context) if "No relevant info" not in context else context
+                mentioned = [c for c in countries_found if c.lower() in summary_text.lower()]
+                if "united arab emirates" in summary_text.lower() and "UAE" in countries_found and "UAE" not in mentioned:
+                    mentioned.append("UAE")
+                
+                all_countries_found.update(mentioned)
+                
+                all_results.append({
+                    'fileName': file.filename, 'heading': heading, 'countriesFound': sorted(list(set(mentioned))),
+                    'images': images, 'summary': summary_text,
+                })
+            except Exception as e:
+                print(f"Error processing file {file.filename}: {str(e)}")
+                all_results.append({
+                    'fileName': file.filename,
+                    'heading': file.filename,
+                    'countriesFound': [],
+                    'images': [],
+                    'summary': f"Error processing this document: {str(e)}"
+                })
         
-        all_results.append({
-            'fileName': file.filename, 'heading': heading, 'countriesFound': sorted(list(set(mentioned))),
-            'images': images, 'summary': summary_text,
-        })
+        # Track this upload
+        try:
+            track_upload(len(uploaded_files), all_countries_found, filenames)
+        except Exception as e:
+            print(f"Error tracking upload: {str(e)}")
+        
+        return jsonify(all_results)
     
-    # Track this upload
-    track_upload(len(uploaded_files), all_countries_found, filenames)
-    
-    return jsonify(all_results)
+    except Exception as e:
+        print(f"Error in process_files: {str(e)}")
+        return jsonify({'error': f"Server error: {str(e)}"}), 500
 
 @app.route('/stats', methods=['GET'])
 def get_stats():
