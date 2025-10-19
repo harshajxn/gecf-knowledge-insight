@@ -32,7 +32,7 @@
                         <div class="file-input-wrapper">
                             <label for="file-input" class="file-input-label">
                                 Select PDF Documents
-                                <span class="file-input-note">(Multiple files supported)</span>
+                                <span class="file-input-note">(Multiple files supported, max 4.5 MB per file)</span>
                             </label>
                             <input type="file" name="files" id="file-input" multiple required class="file-input" accept=".pdf">
                         </div>
@@ -117,6 +117,15 @@
             if (fileInput.files.length === 0) {
                 errorMessage.textContent = 'Please select at least one file to analyze.';
                 return;
+            }
+
+            // Check file sizes (Render limit: 100 MB per file)
+            const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB in bytes
+            for (const file of fileInput.files) {
+                if (file.size > MAX_FILE_SIZE) {
+                    errorMessage.textContent = `Error: File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)} MB). Maximum file size is 100 MB.`;
+                    return;
+                }
             }
 
             loadingSpinner.style.display = 'flex';

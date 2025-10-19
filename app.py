@@ -17,12 +17,13 @@ if os.getenv("GROQ_API_KEY") is None:
     # Don't raise exception, let it fail gracefully when actually used
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 # 200 MB limit per request
+# 100 MB limit for Render
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 # Enable debug logging
 import logging
-logging.basicConfig(level=logging.DEBUG)
-app.logger.setLevel(logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+app.logger.setLevel(logging.INFO)
 
 # Usage statistics storage (in production, use a database)
 STATS_FILE = "/tmp/usage_stats.json"
@@ -157,6 +158,15 @@ def generate_summary(context: str):
 def home():
     track_visit()
     return render_template('index.html')
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint to verify deployment"""
+    return jsonify({
+        'status': 'ok',
+        'groq_api_key_set': os.getenv("GROQ_API_KEY") is not None,
+        'tmp_writable': os.access('/tmp', os.W_OK)
+    })
 
 @app.route('/process', methods=['POST'])
 def process_files():
