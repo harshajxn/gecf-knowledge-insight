@@ -1,5 +1,7 @@
 import os
 import base64
+import json
+from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
@@ -14,6 +16,64 @@ if os.getenv("GROQ_API_KEY") is None:
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 # 200 MB limit per request
+
+# Usage statistics storage (in production, use a database)
+STATS_FILE = "usage_stats.json"
+
+def load_stats():
+    """Load usage statistics from file"""
+    if os.path.exists(STATS_FILE):
+        try:
+            with open(STATS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            pass
+    return {
+        "total_visits": 0,
+        "total_uploads": 0,
+        "total_documents_processed": 0,
+        "total_countries_found": 0,
+        "visits_by_date": {},
+        "uploads_by_date": {},
+        "recent_uploads": []
+    }
+
+def save_stats(stats):
+    """Save usage statistics to file"""
+    try:
+        with open(STATS_FILE, 'w') as f:
+            json.dump(stats, f, indent=2)
+    except Exception as e:
+        print(f"Error saving stats: {e}")
+
+def track_visit():
+    """Track page visit"""
+    stats = load_stats()
+    stats["total_visits"] += 1
+    today = datetime.now().strftime("%Y-%m-%d")
+    stats["visits_by_date"][today] = stats["visits_by_date"].get(today, 0) + 1
+    save_stats(stats)
+
+def track_upload(num_docs, countries_found, filenames):
+    """Track document upload and analysis"""
+    stats = load_stats()
+    stats["total_uploads"] += 1
+    stats["total_documents_processed"] += num_docs
+    stats["total_countries_found"] += len(countries_found)
+    
+    today = datetime.now().strftime("%Y-%m-%d")
+    stats["uploads_by_date"][today] = stats["uploads_by_date"].get(today, 0) + 1
+    
+    # Keep last 10 uploads
+    stats["recent_uploads"].insert(0, {
+        "timestamp": datetime.now().isoformat(),
+        "num_documents": num_docs,
+        "countries": list(countries_found),
+        "filenames": filenames
+    })
+    stats["recent_uploads"] = stats["recent_uploads"][:10]
+    
+    save_stats(stats)
 
 GECF_MEMBER_COUNTRIES = [
     "Algeria", "Bolivia", "Egypt", "Equatorial Guinea", "Iran", "Libya", "Nigeria",
@@ -79,6 +139,7 @@ def generate_summary(context: str):
 
 @app.route('/', methods=['GET'])
 def home():
+    track_visit()
     return render_template('index.html')
 
 @app.route('/process', methods=['POST'])
@@ -88,17 +149,39 @@ def process_files():
         return jsonify({'error': "Please upload at least one file."}), 400
 
     all_results = []
+    all_countries_found = set()
+    filenames = []
+    
     for file in uploaded_files:
+        filenames.append(file.filename)
         context, countries_found, heading, images = extract_relevant_text(file)
         summary_text = generate_summary(context) if "No relevant info" not in context else context
         mentioned = [c for c in countries_found if c.lower() in summary_text.lower()]
         if "united arab emirates" in summary_text.lower() and "UAE" in countries_found and "UAE" not in mentioned:
             mentioned.append("UAE")
+        
+        all_countries_found.update(mentioned)
+        
         all_results.append({
             'fileName': file.filename, 'heading': heading, 'countriesFound': sorted(list(set(mentioned))),
             'images': images, 'summary': summary_text,
         })
+    
+    # Track this upload
+    track_upload(len(uploaded_files), all_countries_found, filenames)
+    
     return jsonify(all_results)
+
+@app.route('/stats', methods=['GET'])
+def get_stats():
+    """API endpoint to get usage statistics as JSON"""
+    stats = load_stats()
+    return jsonify(stats)
+
+@app.route('/dashboard', methods=['GET'])
+def dashboard():
+    """Dashboard page to view usage statistics"""
+    return render_template('stats.html')
 
 if __name__ == '__main__':
     app.run(debug=True)

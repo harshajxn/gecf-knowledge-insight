@@ -1,13 +1,18 @@
 # Virtual Environment
 venv/
 .venv/
+env/
 
 # Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
 
 # Environment variables
 .env
+.env.local
 
 # Temp directory for uploads
 temp/
@@ -15,6 +20,22 @@ temp/
 # IDE specific
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-#pdf files
+# PDF files
 *.pdf
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel
+
+# Usage stats (optional - remove if you want to track in git)
+usage_stats.json
+
+# Logs
+*.log
