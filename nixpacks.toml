@@ -1,0 +1,8 @@
+[phases.setup]
+# Installs system packages required by PyMuPDF
+# aptPacks is for Debian-based systems, which Railway uses
+aptPacks = ["build-essential", "swig"]
+
+[phases.install]
+# Upgrade pip and build tools first for better compatibility
+cmds = ["pip install --upgrade pip setuptools wheel", "pip install -r requirements.txt"]
