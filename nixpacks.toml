@@ -1,7 +1,9 @@
+# nixpacks.toml
+
 [phases.setup]
-# Installs the C compiler and SWIG, which are required to build PyMuPDF
-aptPacks = ["build-essential", "swig"]
+# Installs C/C++ compilers, SWIG, and other tools required by PyMuPDF
+aptPacks = ["build-essential", "swig", "pkg-config"]
 
 [phases.install]
-# Best practice: upgrade pip first, then install requirements
+# Upgrade pip first for better compatibility, then install packages
 cmds = ["pip install --upgrade pip setuptools wheel", "pip install -r requirements.txt"]
