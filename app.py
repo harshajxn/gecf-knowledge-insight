@@ -14,7 +14,7 @@ import fitz  # PyMuPDF
 load_dotenv()
 if os.getenv("GROQ_API_KEY") is None:
     print("WARNING: GROQ_API_KEY not found in environment variables", file=sys.stderr)
-    # Don't raise exception, let it fail gracefully when actually used
+    
 
 app = Flask(__name__)
 # 100 MB limit for Render
