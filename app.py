@@ -119,7 +119,7 @@ def extract_relevant_text(uploaded_file):
 
 def generate_summary(context: str):
     try:
-        llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+        llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0)
         prompt = ChatPromptTemplate.from_template(
             "You are an expert geopolitical energy analyst. "
             "Directly summarize key insights from the text below in one paragraph, focusing on GECF member countries. "
