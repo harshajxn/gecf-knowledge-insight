@@ -53,7 +53,16 @@
                 </div>
             </section>
 
-            <section id="results-section" class="results-section"></section>
+            <section id="results-section" class="results-section" style="display: none;">
+                 <div class="results-header">
+                    <h2>Analysis Results</h2>
+                     <div class="results-actions">
+                        <p id="results-summary" class="results-summary"></p>
+                        <button id="generate-pdf-btn" class="primary-button" disabled>Generate PDF Report</button>
+                    </div>
+                </div>
+                <div id="results-container"></div>
+            </section>
         </main>
     </div>
 
@@ -64,7 +73,10 @@
         const analyzeButton = document.getElementById('analyze-button');
         const loadingSpinner = document.getElementById('loading-spinner');
         const resultsSection = document.getElementById('results-section');
+        const resultsContainer = document.getElementById('results-container');
         const errorMessage = document.getElementById('error-message');
+        const generatePdfBtn = document.getElementById('generate-pdf-btn');
+        const resultsSummary = document.getElementById('results-summary');
 
         let managedFiles = [];
 
@@ -78,11 +90,9 @@
             if (managedFiles.length > 0) {
                 const fileListContainer = document.createElement('div');
                 fileListContainer.className = 'selected-files';
-
                 const listTitle = document.createElement('h4');
                 listTitle.textContent = 'Selected Files:';
                 fileListContainer.appendChild(listTitle);
-
                 managedFiles.forEach((file, index) => {
                     const fileItem = document.createElement('div');
                     fileItem.className = 'file-item';
@@ -97,7 +107,6 @@
                 });
                 fileList.appendChild(fileListContainer);
             }
-
             const dataTransfer = new DataTransfer();
             managedFiles.forEach(file => dataTransfer.items.add(file));
             fileInput.files = dataTransfer.files;
@@ -113,25 +122,25 @@
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-
             if (fileInput.files.length === 0) {
                 errorMessage.textContent = 'Please select at least one file to analyze.';
+                errorMessage.style.display = 'block';
                 return;
             }
-
-            // Check file sizes (Render limit: 100 MB per file)
-            const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB in bytes
+            const MAX_FILE_SIZE = 100 * 1024 * 1024;
             for (const file of fileInput.files) {
                 if (file.size > MAX_FILE_SIZE) {
-                    errorMessage.textContent = `Error: File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(2)} MB). Maximum file size is 100 MB.`;
+                    errorMessage.textContent = `Error: File "${file.name}" is too large. Maximum file size is 100 MB.`;
+                    errorMessage.style.display = 'block';
                     return;
                 }
             }
-
             loadingSpinner.style.display = 'flex';
             analyzeButton.disabled = true;
-            resultsSection.innerHTML = '';
+            resultsSection.style.display = 'none';
+            resultsContainer.innerHTML = '';
             errorMessage.textContent = '';
+            errorMessage.style.display = 'none';
 
             const formData = new FormData();
             for (const file of fileInput.files) {
@@ -139,65 +148,53 @@
             }
 
             try {
-                const response = await fetch('/process', {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                // Check if response is JSON
+                const response = await fetch('/process', { method: 'POST', body: formData });
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     const textResponse = await response.text();
-                    console.error('Non-JSON response:', textResponse);
-                    throw new Error('Server returned an error. Please check console for details. Response: ' + textResponse.substring(0, 200));
+                    throw new Error('Server returned an error: ' + textResponse.substring(0, 200));
                 }
-
                 const results = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(results.error || 'An unknown error occurred.');
-                }
-
+                if (!response.ok) throw new Error(results.error || 'An unknown error occurred.');
                 displayResults(results);
-
             } catch (error) {
-                console.error('Full error:', error);
                 errorMessage.textContent = `Error: ${error.message}`;
+                errorMessage.style.display = 'block';
             } finally {
                 loadingSpinner.style.display = 'none';
                 analyzeButton.disabled = false;
             }
         });
 
+        // <<< --- THIS IS THE CORRECTED FUNCTION --- >>>
         function displayResults(results) {
-            resultsSection.innerHTML = `
-                <div class="results-header">
-                    <h2>Analysis Results</h2>
-                    <p class="results-summary">${results.length} document${results.length !== 1 ? 's' : ''} processed</p>
-                </div>
-            `;
+            resultsSection.style.display = 'block';
+            resultsContainer.innerHTML = '';
+            resultsSummary.textContent = `${results.length} document${results.length !== 1 ? 's' : ''} processed`;
 
             results.forEach((result, index) => {
                 const resultCard = document.createElement('div');
                 resultCard.className = 'result-card';
 
-                let statusClass = '';
-                let statusText = '';
+                const safeTitle = result.heading.replace(/"/g, '&quot;');
+                const safeSummary = result.summary.replace(/"/g, '&quot;');
+                const safeCountries = JSON.stringify(result.countriesFound);
 
-                if (result.countriesFound && result.countriesFound.length > 0) {
-                    statusClass = 'status-success';
-                    statusText = `GECF countries mentioned: ${result.countriesFound.join(', ')}`;
-                } else {
-                    statusClass = 'status-warning';
-                    statusText = 'No GECF country references found';
-                }
+                let statusClass = result.countriesFound?.length > 0 ? 'status-success' : 'status-warning';
+                let statusText = result.countriesFound?.length > 0 ? `GECF countries: ${result.countriesFound.join(', ')}` : 'No GECF countries found';
 
                 let cardContent = `
                     <div class="result-header">
-                        <h3 class="document-title">${result.heading}</h3>
+                        <div class="result-title-wrapper">
+                             <input type="checkbox" class="report-checkbox"
+                                   onchange="handleSelectionChange()"
+                                   data-title="${safeTitle}"
+                                   data-summary="${safeSummary}"
+                                   data-countries='${safeCountries}'>
+                            <h3 class="document-title">${result.heading}</h3>
+                        </div>
                         <div class="status-badge ${statusClass}">${statusText}</div>
                     </div>
-
                     <div class="result-content">
                         <div class="summary-section">
                             <h4>Summary</h4>
@@ -205,6 +202,7 @@
                         </div>
                 `;
 
+                // RESTORED IMAGE GALLERY LOGIC
                 if (result.images && result.images.length > 0) {
                     cardContent += `
                         <div class="images-section">
@@ -221,7 +219,7 @@
                                 </div>
                                 <div class="gallery-images">
                                     ${result.images.map((img, i) => `
-                                        <img src="data:image/png;base64,${img}"
+                                        <img src="data:image/jpeg;base64,${img}"
                                              class="gallery-image"
                                              style="display: ${i === 0 ? 'block' : 'none'};"
                                              alt="Document image ${i + 1}">
@@ -234,10 +232,66 @@
 
                 cardContent += '</div>';
                 resultCard.innerHTML = cardContent;
-                resultsSection.appendChild(resultCard);
+                resultsContainer.appendChild(resultCard);
             });
         }
 
+        function handleSelectionChange() {
+            const selectedCheckboxes = document.querySelectorAll('.report-checkbox:checked');
+            generatePdfBtn.disabled = selectedCheckboxes.length === 0;
+        }
+
+        generatePdfBtn.addEventListener('click', async () => {
+            const selectedReports = [];
+            document.querySelectorAll('.report-checkbox:checked').forEach(checkbox => {
+                selectedReports.push({
+                    title: checkbox.dataset.title,
+                    summary: checkbox.dataset.summary,
+                    countries: JSON.parse(checkbox.dataset.countries)
+                });
+            });
+
+            if (selectedReports.length === 0) {
+                alert('Please select at least one report to generate the PDF.');
+                return;
+            }
+
+            generatePdfBtn.disabled = true;
+            generatePdfBtn.textContent = 'Generating...';
+
+            try {
+                const response = await fetch('/generate-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(selectedReports)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to generate PDF.');
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'GECF_Summary_Report.pdf';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+
+            } catch (error) {
+                errorMessage.textContent = `PDF Generation Error: ${error.message}`;
+                errorMessage.style.display = 'block';
+            } finally {
+                generatePdfBtn.disabled = false;
+                generatePdfBtn.textContent = 'Generate PDF Report';
+            }
+        });
+        
+        // This function is needed for the gallery buttons to work
         function changeSlide(galleryIndex, direction) {
             const gallery = document.getElementById(`gallery-${galleryIndex}`);
             const images = gallery.getElementsByClassName('gallery-image');
