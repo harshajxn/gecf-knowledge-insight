@@ -165,8 +165,7 @@
                 analyzeButton.disabled = false;
             }
         });
-
-        // <<< --- THIS IS THE CORRECTED FUNCTION --- >>>
+        
         function displayResults(results) {
             resultsSection.style.display = 'block';
             resultsContainer.innerHTML = '';
@@ -175,10 +174,11 @@
             results.forEach((result, index) => {
                 const resultCard = document.createElement('div');
                 resultCard.className = 'result-card';
-
+                
                 const safeTitle = result.heading.replace(/"/g, '&quot;');
                 const safeSummary = result.summary.replace(/"/g, '&quot;');
                 const safeCountries = JSON.stringify(result.countriesFound);
+                const safeSource = result.source ? result.source.replace(/"/g, '&quot;') : '';
 
                 let statusClass = result.countriesFound?.length > 0 ? 'status-success' : 'status-warning';
                 let statusText = result.countriesFound?.length > 0 ? `GECF countries: ${result.countriesFound.join(', ')}` : 'No GECF countries found';
@@ -190,10 +190,14 @@
                                    onchange="handleSelectionChange()"
                                    data-title="${safeTitle}"
                                    data-summary="${safeSummary}"
-                                   data-countries='${safeCountries}'>
+                                   data-countries='${safeCountries}'
+                                   data-source="${safeSource}">
                             <h3 class="document-title">${result.heading}</h3>
                         </div>
-                        <div class="status-badge ${statusClass}">${statusText}</div>
+                        <div class="status-badge-container">
+                            ${result.source && result.source !== 'Unknown' ? `<div class="source-badge">Source: ${result.source}</div>` : ''}
+                            <div class="status-badge ${statusClass}">${statusText}</div>
+                        </div>
                     </div>
                     <div class="result-content">
                         <div class="summary-section">
@@ -202,7 +206,6 @@
                         </div>
                 `;
 
-                // RESTORED IMAGE GALLERY LOGIC
                 if (result.images && result.images.length > 0) {
                     cardContent += `
                         <div class="images-section">
@@ -247,7 +250,8 @@
                 selectedReports.push({
                     title: checkbox.dataset.title,
                     summary: checkbox.dataset.summary,
-                    countries: JSON.parse(checkbox.dataset.countries)
+                    countries: JSON.parse(checkbox.dataset.countries),
+                    source: checkbox.dataset.source
                 });
             });
 
@@ -276,7 +280,7 @@
                 const a = document.createElement('a');
                 a.style.display = 'none';
                 a.href = url;
-                a.download = 'GECF_Summary_Report.pdf';
+                a.download = 'GECF_News_Report.pdf';
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
@@ -291,15 +295,12 @@
             }
         });
         
-        // This function is needed for the gallery buttons to work
         function changeSlide(galleryIndex, direction) {
             const gallery = document.getElementById(`gallery-${galleryIndex}`);
             const images = gallery.getElementsByClassName('gallery-image');
             const counter = gallery.getElementsByClassName('gallery-counter')[0];
-
             let currentIndex = Array.from(images).findIndex(img => img.style.display === 'block');
             let newIndex = (currentIndex + direction + images.length) % images.length;
-
             images[currentIndex].style.display = 'none';
             images[newIndex].style.display = 'block';
             counter.textContent = `${newIndex + 1} of ${images.length}`;
