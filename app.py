@@ -219,7 +219,7 @@ def extract_document_data(uploaded_file):
 
 def generate_summary(context: str, countries_found: list):
     try:
-        llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+        llm = ChatGroq(model="meta-llama/llama-4-maverick-17b-128e-instruct", temperature=0)
         if countries_found:
             template = ("You are an expert geopolitical energy analyst. Directly summarize key insights from the text below in one paragraph, focusing on the role of GECF countries. Do not start with introductory phrases. Avoid lists.\n\nCONTEXT: {context}")
         else:
