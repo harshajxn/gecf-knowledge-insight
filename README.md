@@ -18,7 +18,7 @@ An intelligent full-stack web application designed to automate the extraction an
 
 ## The Problem
 
-Analysts, researchers, and policymakers often need to review lengthy reports and publications to find specific information about GECF member countries. This is a time-consuming, manual process that involves sifting through hundreds of pages to find relevant sections and then summarizing the key takeaways.
+Analysts often need to review lengthy reports and publications to find specific information about GECF member countries. This is a time-consuming, manual process to find relevant sections and then summarizing the key takeaways.
 
 ## The Solution
 
