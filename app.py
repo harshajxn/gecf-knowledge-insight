@@ -1,5 +1,3 @@
-# app.py (Final Version - Aligns Source and Countries on Same Line)
-
 import os
 import base64
 import sys
@@ -38,7 +36,7 @@ GECF_MEMBER_COUNTRIES = ["Algeria", "Bolivia", "Egypt", "Equatorial Guinea", "Ir
 GECF_OBSERVER_COUNTRIES = ["Angola", "Azerbaijan", "Iraq", "Malaysia", "Mauritania", "Mozambique", "Peru", "Senegal"]
 ALL_GECF_COUNTRIES = GECF_MEMBER_COUNTRIES + GECF_OBSERVER_COUNTRIES
 
-# --- List of known sources and months, re-ordered for priority ---
+# --- List of known sources and months ---
 KNOWN_SOURCES = ["Rystad Energy", "Enerdata", "Argus", "Wood Mackenzie", "Bloomberg"]
 MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
 
@@ -85,9 +83,7 @@ class PDF(FPDF):
         self.set_text_color(*self.TEXT_GRAY)
         self.cell(0, 10, f'Page {self.page_no()}', align='C')
 
-    # <<< --- FINAL FIX: HORIZONTALLY ALIGNED COUNTRIES AND SOURCE --- >>>
     def add_report_entry(self, title, countries, summary, source):
-        # --- Title ---
         self.set_font(self.font_family, 'B', 14)
         self.set_text_color(*self.GECF_BLUE)
         self.multi_cell(0, 8, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -108,11 +104,10 @@ class PDF(FPDF):
         source_str = ""
         if source and source != "Unknown":
             source_str = f"Source: {source}"
-        # Use width=0 to fill the rest of the line, align='R'
         self.cell(0, 8, source_str, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         
         # --- Summary ---
-        self.ln(4) # Add space before summary
+        self.ln(4) 
         self.set_font(self.font_family, '', 11)
         self.set_text_color(*self.TEXT_DARK)
         self.multi_cell(0, 6, summary, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -124,7 +119,7 @@ class PDF(FPDF):
         self.line(self.get_x(), self.get_y(), self.w - self.r_margin, self.get_y())
         self.ln(10)
 
-# --- Helper Functions and Routes (No changes below) ---
+# --- Helper Functions and Routes ---
 def resize_and_encode_image(image_bytes, max_width=800):
     try:
         img = Image.open(io.BytesIO(image_bytes))
@@ -219,7 +214,7 @@ def extract_document_data(uploaded_file):
 
 def generate_summary(context: str, countries_found: list):
     try:
-        llm = ChatGroq(model="meta-llama/llama-4-maverick-17b-128e-instruct", temperature=0)
+        llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
         if countries_found:
             template = ("You are an expert geopolitical energy analyst. Directly summarize key insights from the text below in one paragraph, focusing on the role of GECF countries. Do not start with introductory phrases. Avoid lists.\n\nCONTEXT: {context}")
         else:

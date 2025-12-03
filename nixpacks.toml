@@ -1,5 +1,3 @@
-# nixpacks.toml
-
 [phases.setup]
 # Installs C/C++ compilers, SWIG, and other tools required by PyMuPDF
 aptPacks = ["build-essential", "swig", "pkg-config"]
